@@ -10,7 +10,7 @@
     <div class="app-shell">
       <aside class="sidebar" aria-label="Main navigation">
         <div class="brand">
-          <img class="brand-logo" src="./assets/header-logo.png" alt="iamBrandon Tracker" />
+          <img class="brand-logo" src="./assets/header-logo-soft.png" alt="iamBrandon Tracker" />
         </div>
         <nav class="tabs" id="tabs">
           <button class="tab is-active" data-view="dashboard" type="button">Dashboard</button>
@@ -48,6 +48,7 @@
             <p>2200 calories - 165g protein - 5:00 PM training</p>
           </div>
           <div class="metrics-grid" id="metricsGrid"></div>
+          <section class="panel daily-panel" id="dailyCaloriePanel" aria-label="Daily calorie progress"></section>
           <div class="two-column">
             <section class="panel">
               <div class="panel-header">
@@ -91,6 +92,19 @@
               </select>
             </label>
           </div>
+          <div class="sync-controls" aria-label="Cloud sync settings">
+            <label>
+              Cloud API URL
+              <input id="syncUrl" inputmode="url" placeholder="https://iambrandon-tracker-api.brandonvolochbus.workers.dev" />
+            </label>
+            <label>
+              Sync code
+              <input id="syncCode" placeholder="private-tracker-code" />
+            </label>
+            <button class="sync-button" id="connectSync" type="button">Connect</button>
+            <span class="sync-status" id="syncStatus">Local only</span>
+          </div>
+          <section class="panel meal-day-total" id="mealDailyTotal" aria-label="Selected day calorie total"></section>
           <div class="meal-list" id="mealList"></div>
         </section>
 

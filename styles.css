@@ -36,7 +36,9 @@ body {
 
 body {
   margin: 0;
-  background: #000;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.03), rgba(2, 6, 10, 0.42) 52%, rgba(3, 7, 11, 0.76)),
+    url("./assets/app-background.png") center center / cover no-repeat fixed;
   color: var(--ink);
   font-size: 14px;
   letter-spacing: 0;
@@ -45,22 +47,12 @@ body {
 body::before {
   content: "";
   position: fixed;
-  inset: -7vh -7vw;
+  inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(2, 6, 10, 0.35) 54%, rgba(0, 0, 0, 0.86)),
-    url("./assets/app-background.png") center center / cover no-repeat;
-  opacity: 0.92;
-  filter: blur(0.4px) saturate(0.96);
-  transform: scale(1.035);
-  mask-image:
-    linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%),
-    linear-gradient(180deg, transparent 0%, #000 10%, #000 86%, transparent 100%);
-  mask-composite: intersect;
-  -webkit-mask-image:
-    linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%),
-    linear-gradient(180deg, transparent 0%, #000 10%, #000 86%, transparent 100%);
-  -webkit-mask-composite: source-in;
+    radial-gradient(ellipse at 82% 35%, rgba(160, 220, 255, 0.14), transparent 34%),
+    radial-gradient(ellipse at 18% 70%, rgba(66, 133, 244, 0.1), transparent 28%);
+  opacity: 0.82;
 }
 
 body::after {
@@ -68,12 +60,8 @@ body::after {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse at 50% 42%, transparent 0%, transparent 48%, rgba(0, 0, 0, 0.42) 78%, #000 100%),
-    radial-gradient(ellipse at 82% 35%, rgba(160, 220, 255, 0.10), transparent 34%),
-    radial-gradient(ellipse at 18% 70%, rgba(66, 133, 244, 0.08), transparent 28%),
-    linear-gradient(90deg, #000 0%, rgba(0, 0, 0, 0.38) 10%, transparent 26%, transparent 74%, rgba(0, 0, 0, 0.42) 90%, #000 100%);
-  opacity: 0.96;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.28), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.18));
+  opacity: 0.8;
 }
 
 button,
@@ -122,9 +110,7 @@ button {
   width: min(100%, 248px);
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 0 18px rgba(66, 133, 244, 0.35));
-  mask-image: radial-gradient(ellipse at center, #000 45%, rgba(0, 0, 0, 0.86) 62%, transparent 100%);
-  -webkit-mask-image: radial-gradient(ellipse at center, #000 45%, rgba(0, 0, 0, 0.86) 62%, transparent 100%);
+  filter: drop-shadow(0 0 14px rgba(66, 133, 244, 0.26));
 }
 
 .tabs {
@@ -343,6 +329,86 @@ button:focus-visible {
   padding: 14px;
 }
 
+.daily-panel,
+.meal-day-total {
+  margin-bottom: 14px;
+  padding: 16px;
+}
+
+.daily-calorie-layout {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.daily-ring {
+  --daily-deg: 0deg;
+  position: relative;
+  width: 78px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    conic-gradient(from -90deg, #4285f4 0deg, #34a853 var(--daily-deg), rgba(255, 255, 255, 0.1) 0deg),
+    rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 28px rgba(66, 133, 244, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.daily-ring::before {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: inherit;
+  background: rgba(3, 7, 11, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.daily-ring span {
+  position: relative;
+  z-index: 1;
+  font-weight: 800;
+  color: #fff;
+}
+
+.daily-calorie-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.daily-calorie-copy > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.daily-calorie-copy strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.daily-calorie-copy small {
+  color: var(--muted);
+}
+
+.daily-progress {
+  position: relative;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.daily-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4285f4, #ea4335, #fbbc05, #34a853);
+  box-shadow: 0 0 20px rgba(66, 133, 244, 0.28);
+}
+
 .metric span {
   display: block;
   color: var(--muted);
@@ -438,13 +504,61 @@ button:focus-visible {
 
 .day-inputs,
 .workout-controls,
-.search-row {
+.search-row,
+.sync-controls {
   margin-bottom: 14px;
   padding: 12px;
   background: rgba(5, 10, 18, 0.7);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   backdrop-filter: blur(18px);
+}
+
+.sync-controls {
+  display: grid;
+  grid-template-columns: minmax(210px, 1.1fr) minmax(160px, 0.7fr) 108px minmax(120px, auto);
+  gap: 10px;
+  align-items: end;
+}
+
+.sync-button,
+.macro-button {
+  min-height: 38px;
+  border: 1px solid rgba(66, 133, 244, 0.34);
+  border-radius: var(--radius);
+  color: #fff;
+  background: linear-gradient(90deg, rgba(66, 133, 244, 0.34), rgba(52, 168, 83, 0.22));
+  box-shadow: 0 0 22px rgba(66, 133, 244, 0.12);
+}
+
+.sync-button:hover,
+.macro-button:hover {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: linear-gradient(90deg, rgba(66, 133, 244, 0.44), rgba(52, 168, 83, 0.28));
+}
+
+.sync-button:disabled,
+.macro-button:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.sync-status {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sync-status[data-state="error"],
+.macro-status[data-state="error"] {
+  color: #ffb4ae;
+}
+
+.macro-status[data-state="loading"] {
+  color: #9ed3ff;
 }
 
 .meal-list,
@@ -455,7 +569,7 @@ button:focus-visible {
 
 .meal-card {
   display: grid;
-  grid-template-columns: 110px minmax(190px, 0.8fr) minmax(240px, 1.4fr) minmax(290px, 1fr);
+  grid-template-columns: 104px minmax(172px, 0.7fr) minmax(220px, 1fr) minmax(380px, 1.35fr);
   gap: 14px;
   padding: 14px;
   align-items: start;
@@ -512,16 +626,44 @@ button:focus-visible {
 
 .actual-inputs {
   display: grid;
+  grid-template-columns: minmax(150px, 0.82fr) minmax(190px, 1fr);
+  gap: 10px;
+}
+
+.actual-macro-grid {
+  display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.macro-helper {
+  display: grid;
   gap: 8px;
 }
 
 .actual-inputs input,
 .day-inputs input,
 .day-inputs select,
+.sync-controls input,
 .set-grid input,
-.note-input {
+.note-input,
+.macro-text {
   background: var(--input);
+}
+
+.macro-text {
+  width: 100%;
+  min-width: 0;
+  min-height: 88px;
+  padding: 9px 10px;
+  resize: vertical;
+}
+
+.macro-status {
+  min-height: 16px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .recipe-grid {
@@ -722,7 +864,8 @@ button:focus-visible {
   }
 
   .meal-card,
-  .workout-card {
+  .workout-card,
+  .sync-controls {
     grid-template-columns: 1fr;
   }
 
@@ -753,7 +896,16 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .daily-calorie-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-ring {
+    width: 72px;
+  }
+
   .actual-inputs,
+  .actual-macro-grid,
   .set-grid {
     grid-template-columns: 1fr;
   }

@@ -2,6 +2,9 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 const CAL_TARGET = 2200;
 const PROTEIN_TARGET = 165;
 const STORE_KEY = "ppl-food-training-app-v1";
+const DEFAULT_SYNC_URL = "https://iambrandon-tracker-api.brandonvolochbus.workers.dev";
+const SYNC_CONFIG_STORE = "iambrandon-tracker-sync-v1";
+const SYNC_POLL_MS = 5000;
 
 const recipes = [
   ["Breakfast Scramble", "Breakfast", "10-12 min", 730, 74, 8, 44, "4 eggs, 1/2 Jennie-O turkey sausage roll, spinach/peppers/mushrooms/onion, salsa.", "Cook sausage into crumbles, add vegetables, then scramble in eggs. Keep carbs out of breakfast.", "Jennie-O nutrition + custom breakfast"],
@@ -148,17 +151,30 @@ const sources = [
 const recipeByName = Object.fromEntries(recipes.map((recipe) => [recipe.name, recipe]));
 const sessionNames = [...new Set(workoutPlan.map((item) => item.session))];
 let state = loadState();
+let syncConfig = loadSyncConfig();
+let syncPollTimer;
+let syncPushTimer;
+let applyingRemote = false;
+let syncIsPushing = false;
 
 const el = (id) => document.getElementById(id);
 const money = (n) => `$${Math.round(n)}`;
 const num = (value) => Number.parseFloat(value) || 0;
 const safeId = (value) => value.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  "\"": "&quot;",
+  "'": "&#039;",
+})[char]);
 
 function defaultState() {
   return {
     day: "Monday",
     week: "1",
     session: "Push A",
+    updatedAt: Date.now(),
     days: {},
     meals: {},
     workouts: {},
@@ -175,7 +191,22 @@ function loadState() {
 }
 
 function saveState() {
+  if (!applyingRemote) state.updatedAt = Date.now();
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  if (!applyingRemote) scheduleSyncPush();
+}
+
+function loadSyncConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SYNC_CONFIG_STORE) || "{}");
+    return { backendUrl: saved.backendUrl || DEFAULT_SYNC_URL, syncCode: saved.syncCode || "", lastRemoteUpdatedAt: saved.lastRemoteUpdatedAt || 0 };
+  } catch {
+    return { backendUrl: DEFAULT_SYNC_URL, syncCode: "", lastRemoteUpdatedAt: 0 };
+  }
+}
+
+function saveSyncConfig() {
+  localStorage.setItem(SYNC_CONFIG_STORE, JSON.stringify(syncConfig));
 }
 
 function mealKey(day, recipe, index) {
@@ -193,9 +224,15 @@ function plannedMealsForDay(day) {
 function countedMeal(day, meal, index) {
   const recipe = recipeByName[meal.recipe];
   const entry = state.meals[mealKey(day, meal.recipe, index)] || {};
+  const hasCalories = entry.calories !== undefined && entry.calories !== "";
+  const hasProtein = entry.protein !== undefined && entry.protein !== "";
+  const hasCarbs = entry.carbs !== undefined && entry.carbs !== "";
+  const hasFat = entry.fat !== undefined && entry.fat !== "";
   return {
-    calories: entry.calories ? num(entry.calories) : recipe.calories,
-    protein: entry.protein ? num(entry.protein) : recipe.protein,
+    calories: hasCalories ? num(entry.calories) : recipe.calories,
+    protein: hasProtein ? num(entry.protein) : recipe.protein,
+    carbs: hasCarbs ? num(entry.carbs) : recipe.carbs,
+    fat: hasFat ? num(entry.fat) : recipe.fat,
   };
 }
 
@@ -205,11 +242,15 @@ function dayTotals(day) {
       const counted = countedMeal(day, meal, index);
       total.calories += counted.calories;
       total.protein += counted.protein;
+      total.carbs += counted.carbs;
+      total.fat += counted.fat;
       total.plannedCalories += recipeByName[meal.recipe].calories;
       total.plannedProtein += recipeByName[meal.recipe].protein;
+      total.plannedCarbs += recipeByName[meal.recipe].carbs;
+      total.plannedFat += recipeByName[meal.recipe].fat;
       return total;
     },
-    { calories: 0, protein: 0, plannedCalories: 0, plannedProtein: 0 },
+    { calories: 0, protein: 0, carbs: 0, fat: 0, plannedCalories: 0, plannedProtein: 0, plannedCarbs: 0, plannedFat: 0 },
   );
 }
 
@@ -275,7 +316,14 @@ function initControls() {
   el("importData").addEventListener("change", importData);
   el("resetData").addEventListener("click", resetData);
 
+  el("syncUrl").value = syncConfig.backendUrl || "";
+  el("syncCode").value = syncConfig.syncCode || "";
+  el("syncUrl").addEventListener("input", updateSyncConfigFromInputs);
+  el("syncCode").addEventListener("input", updateSyncConfigFromInputs);
+  el("connectSync").addEventListener("click", connectCloudSync);
+
   el("currentDateLabel").textContent = "Monday, June 1, 2026";
+  startSyncLoop();
 }
 
 function renderDashboard() {
@@ -293,6 +341,8 @@ function renderDashboard() {
     metric("Grocery total", money(groceryTotal), "$150 target"),
     metric("Logged lifts", completedExercises, `week ${state.week}`),
   ].join("");
+
+  el("dailyCaloriePanel").innerHTML = dailyCalorieMarkup(current, state.day);
 
   el("calorieChart").innerHTML = DAYS.map((day) => {
     const total = dayTotals(day);
@@ -313,7 +363,7 @@ function renderDashboard() {
   el("todayWorkoutLabel").textContent = session;
   el("todaySummary").innerHTML = `
     <ul class="today-list">
-      <li><strong>${state.day}</strong> - ${Math.round(current.calories)} calories - ${Math.round(current.protein)}g protein</li>
+      <li><strong>${state.day}</strong> - ${Math.round(current.calories)} calories - P ${Math.round(current.protein)}g / C ${Math.round(current.carbs)}g / F ${Math.round(current.fat)}g</li>
       <li>Workout: ${session} at 5:00 PM for about 45 minutes</li>
       <li>Weight: ${dayData.weight || "not logged"} - Steps: ${dayData.steps || "not logged"}</li>
       <li>Produce: ${dayData.produce || "not logged"}</li>
@@ -322,6 +372,32 @@ function renderDashboard() {
 
 function metric(label, value, sub) {
   return `<div class="metric"><span>${label}</span><strong>${value}</strong><small>${sub}</small></div>`;
+}
+
+function dailyCalorieMarkup(total, day) {
+  const calories = Math.round(total.calories);
+  const protein = Math.round(total.protein);
+  const carbs = Math.round(total.carbs);
+  const fat = Math.round(total.fat);
+  const percent = Math.round((calories / CAL_TARGET) * 100);
+  const ringDegrees = Math.min(360, Math.round((calories / CAL_TARGET) * 360));
+  const barWidth = Math.min(100, percent);
+  const remaining = CAL_TARGET - calories;
+  const remainingText = remaining >= 0 ? `${remaining} calories left` : `${Math.abs(remaining)} calories over`;
+  return `
+    <div class="daily-calorie-layout">
+      <div class="daily-ring" style="--daily-deg:${ringDegrees}deg">
+        <span>${percent}%</span>
+      </div>
+      <div class="daily-calorie-copy">
+        <span>Daily calories - ${day}</span>
+        <strong>${calories} / ${CAL_TARGET} cal</strong>
+        <small>${remainingText} - P ${protein}g / C ${carbs}g / F ${fat}g</small>
+        <div class="daily-progress" aria-hidden="true">
+          <span style="width:${barWidth}%"></span>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderMeals() {
@@ -334,6 +410,7 @@ function renderMeals() {
   el("weightInput").oninput = updateDayData;
   el("stepsInput").oninput = updateDayData;
   el("produceSelect").onchange = updateDayData;
+  renderMealSummary();
 
   el("mealList").innerHTML = plannedMealsForDay(day).map((meal, index) => {
     const recipe = recipeByName[meal.recipe];
@@ -352,8 +429,20 @@ function renderMeals() {
         </div>
         <p class="short-recipe"><strong>Make it:</strong> ${recipe.method}<br><strong>Ingredients:</strong> ${recipe.ingredients}</p>
         <div class="actual-inputs">
-          <label>Actual calories <input data-meal="${key}" data-field="calories" inputmode="decimal" value="${entry.calories || ""}" placeholder="${recipe.calories}"></label>
-          <label>Actual protein <input data-meal="${key}" data-field="protein" inputmode="decimal" value="${entry.protein || ""}" placeholder="${recipe.protein}"></label>
+          <div class="actual-macro-grid">
+            <label>Actual calories <input data-meal="${esc(key)}" data-field="calories" inputmode="decimal" value="${esc(entry.calories)}" placeholder="${recipe.calories}"></label>
+            <label>Actual protein <input data-meal="${esc(key)}" data-field="protein" inputmode="decimal" value="${esc(entry.protein)}" placeholder="${recipe.protein}"></label>
+            <label>Actual carbs <input data-meal="${esc(key)}" data-field="carbs" inputmode="decimal" value="${esc(entry.carbs)}" placeholder="${recipe.carbs}"></label>
+            <label>Actual fat <input data-meal="${esc(key)}" data-field="fat" inputmode="decimal" value="${esc(entry.fat)}" placeholder="${recipe.fat}"></label>
+          </div>
+          <div class="macro-helper">
+            <label>
+              ChatGPT food text
+              <textarea class="macro-text" data-macro-description="${esc(key)}" placeholder="Example: 2 slices pepperoni pizza, 1 scoop whey, banana">${esc(entry.description)}</textarea>
+            </label>
+            <button class="macro-button" type="button" data-calculate-macros="${esc(key)}" data-recipe="${esc(recipe.name)}">Calculate macros</button>
+            <small class="macro-status" data-macro-status>${esc(entry.aiNote || "Connect cloud sync for AI macro estimates.")}</small>
+          </div>
         </div>
       </article>`;
   }).join("");
@@ -363,9 +452,216 @@ function renderMeals() {
       const key = input.dataset.meal;
       state.meals[key] = { ...(state.meals[key] || {}), [input.dataset.field]: input.value };
       saveState();
+      renderMealSummary();
       renderDashboard();
     });
   });
+
+  document.querySelectorAll("[data-macro-description]").forEach((textarea) => {
+    textarea.addEventListener("input", () => {
+      const key = textarea.dataset.macroDescription;
+      state.meals[key] = { ...(state.meals[key] || {}), description: textarea.value };
+      saveState();
+    });
+  });
+
+  document.querySelectorAll("[data-calculate-macros]").forEach((button) => {
+    button.addEventListener("click", calculateMacrosForMeal);
+  });
+}
+
+function renderMealSummary() {
+  el("mealDailyTotal").innerHTML = dailyCalorieMarkup(dayTotals(state.day), state.day);
+}
+
+async function calculateMacrosForMeal(event) {
+  const button = event.currentTarget;
+  const card = button.closest(".meal-card");
+  const key = button.dataset.calculateMacros;
+  const textarea = card.querySelector("[data-macro-description]");
+  const description = textarea.value.trim();
+
+  if (!description) {
+    setMacroStatus(card, "Type what you ate first.", "error");
+    textarea.focus();
+    return;
+  }
+
+  if (!isSyncReady()) {
+    setMacroStatus(card, "Connect cloud sync first so AI can run privately.", "error");
+    el("syncUrl").focus();
+    return;
+  }
+
+  button.disabled = true;
+  setMacroStatus(card, "Calculating from your food text...", "loading");
+
+  try {
+    const recipe = recipeByName[button.dataset.recipe];
+    if (!recipe) throw new Error("Recipe data is missing for this meal.");
+    const estimate = await estimateMacrosWithBackend(description, recipe);
+    state.meals[key] = {
+      ...(state.meals[key] || {}),
+      description,
+      calories: Math.round(estimate.calories),
+      protein: Math.round(estimate.protein),
+      carbs: Math.round(estimate.carbs),
+      fat: Math.round(estimate.fat),
+      aiNote: estimate.notes || `AI estimate: ${estimate.confidence || "review portions if unsure"}`,
+    };
+    saveState();
+    renderMeals();
+    renderDashboard();
+  } catch (error) {
+    setMacroStatus(card, error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function setMacroStatus(card, message, stateName = "") {
+  const status = card.querySelector("[data-macro-status]");
+  if (!status) return;
+  status.textContent = message;
+  status.dataset.state = stateName;
+}
+
+async function estimateMacrosWithBackend(description, recipe) {
+  const result = await syncRequest("estimateMacros", {
+    description,
+    recipe: {
+      name: recipe.name,
+      ingredients: recipe.ingredients,
+      calories: recipe.calories,
+      protein: recipe.protein,
+      carbs: recipe.carbs,
+      fat: recipe.fat,
+    },
+  });
+  const estimate = result.estimate;
+  if (!estimate) throw new Error("The AI did not return macro numbers.");
+  ["calories", "protein", "carbs", "fat"].forEach((field) => {
+    if (!Number.isFinite(num(estimate[field]))) {
+      throw new Error("The AI returned an estimate I could not read.");
+    }
+  });
+  return estimate;
+}
+
+function updateSyncConfigFromInputs() {
+  syncConfig = {
+    ...syncConfig,
+    backendUrl: el("syncUrl").value.trim(),
+    syncCode: el("syncCode").value.trim(),
+  };
+  saveSyncConfig();
+  startSyncLoop();
+  setSyncStatus(isSyncReady() ? "Ready to sync" : "Local only");
+}
+
+function isSyncReady() {
+  return Boolean(syncConfig.backendUrl && syncConfig.syncCode);
+}
+
+function normalizeBackendUrl(url) {
+  return url.replace(/\/+$/, "");
+}
+
+async function connectCloudSync() {
+  updateSyncConfigFromInputs();
+  if (!isSyncReady()) {
+    setSyncStatus("Add the Cloud API URL and sync code.", "error");
+    return;
+  }
+
+  setSyncStatus("Connecting...");
+  try {
+    const remote = await syncRequest("getState");
+    if (remote.state) {
+      applyRemoteState(remote.state, remote.updatedAt);
+      setSyncStatus("Synced from cloud");
+    } else {
+      await pushStateToCloud();
+      setSyncStatus("Cloud sync ready");
+    }
+    startSyncLoop();
+  } catch (error) {
+    setSyncStatus(error.message, "error");
+  }
+}
+
+function startSyncLoop() {
+  clearInterval(syncPollTimer);
+  if (!isSyncReady()) return;
+  syncPollTimer = setInterval(() => pullStateFromCloud(), SYNC_POLL_MS);
+}
+
+function scheduleSyncPush() {
+  if (!isSyncReady()) return;
+  clearTimeout(syncPushTimer);
+  syncPushTimer = setTimeout(() => {
+    pushStateToCloud().catch((error) => setSyncStatus(error.message, "error"));
+  }, 650);
+}
+
+async function pushStateToCloud() {
+  if (!isSyncReady() || syncIsPushing) return;
+  syncIsPushing = true;
+  try {
+    setSyncStatus("Saving to cloud...");
+    const result = await syncRequest("saveState", { state });
+    syncConfig.lastRemoteUpdatedAt = result.updatedAt || Date.now();
+    saveSyncConfig();
+    setSyncStatus("Synced");
+  } finally {
+    syncIsPushing = false;
+  }
+}
+
+async function pullStateFromCloud() {
+  if (!isSyncReady()) return;
+  try {
+    const remote = await syncRequest("getState");
+    if (!remote.state || !remote.updatedAt || remote.updatedAt <= (syncConfig.lastRemoteUpdatedAt || 0)) return;
+    applyRemoteState(remote.state, remote.updatedAt);
+    setSyncStatus("Updated from another device");
+  } catch (error) {
+    setSyncStatus(error.message, "error");
+  }
+}
+
+function applyRemoteState(remoteState, updatedAt) {
+  applyingRemote = true;
+  state = { ...defaultState(), ...remoteState };
+  syncConfig.lastRemoteUpdatedAt = updatedAt || Date.now();
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  saveSyncConfig();
+  applyingRemote = false;
+  renderAll();
+}
+
+async function syncRequest(action, payload = {}) {
+  const response = await fetch(normalizeBackendUrl(syncConfig.backendUrl), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action,
+      syncCode: syncConfig.syncCode,
+      ...payload,
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.ok === false) {
+    throw new Error(result.error || `Cloud sync failed (${response.status})`);
+  }
+  return result;
+}
+
+function setSyncStatus(message, stateName = "") {
+  const status = el("syncStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.dataset.state = stateName;
 }
 
 function updateDayData() {
@@ -560,3 +856,4 @@ function renderAll() {
 
 initControls();
 renderAll();
+if (isSyncReady()) pullStateFromCloud();
