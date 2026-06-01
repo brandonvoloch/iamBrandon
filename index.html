@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iamBrandon Tracker</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <div class="brand">
+          <img class="brand-logo" src="./assets/header-logo.png" alt="iamBrandon Tracker" />
+        </div>
+        <nav class="tabs" id="tabs">
+          <button class="tab is-active" data-view="dashboard" type="button">Dashboard</button>
+          <button class="tab" data-view="meals" type="button">Meals</button>
+          <button class="tab" data-view="workouts" type="button">Workouts</button>
+          <button class="tab" data-view="recipes" type="button">Recipes</button>
+          <button class="tab" data-view="grocery" type="button">Grocery</button>
+          <button class="tab" data-view="notes" type="button">Notes</button>
+        </nav>
+        <div class="sidebar-footer">
+          <button class="ghost-button" id="exportData" type="button" title="Download your saved tracking data">Export</button>
+          <label class="ghost-button file-label" title="Import saved tracking data">
+            Import
+            <input id="importData" type="file" accept="application/json" />
+          </label>
+          <button class="ghost-button danger" id="resetData" type="button" title="Clear saved entries">Reset</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="hero">
+          <div>
+            <p class="eyebrow" id="currentDateLabel"></p>
+            <h2>Build muscle, lose fat, eat like yourself.</h2>
+          </div>
+          <div class="hero-actions">
+            <label for="daySelect">Day</label>
+            <select id="daySelect"></select>
+          </div>
+        </section>
+
+        <section class="view is-active" id="view-dashboard" aria-labelledby="dashboard-title">
+          <div class="section-heading">
+            <h3 id="dashboard-title">Dashboard</h3>
+            <p>2200 calories - 165g protein - 5:00 PM training</p>
+          </div>
+          <div class="metrics-grid" id="metricsGrid"></div>
+          <div class="two-column">
+            <section class="panel">
+              <div class="panel-header">
+                <h4>Weekly Calories</h4>
+                <span>planned vs actual</span>
+              </div>
+              <div class="bar-chart" id="calorieChart" aria-label="Weekly calorie chart"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h4>Today</h4>
+                <span id="todayWorkoutLabel"></span>
+              </div>
+              <div id="todaySummary"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="view-meals" aria-labelledby="meals-title">
+          <div class="section-heading">
+            <h3 id="meals-title">Meals</h3>
+            <p>Low-carb breakfast - carbs before and after training</p>
+          </div>
+          <div class="day-inputs">
+            <label>
+              Morning weight
+              <input id="weightInput" inputmode="decimal" placeholder="160" />
+            </label>
+            <label>
+              Steps
+              <input id="stepsInput" inputmode="numeric" placeholder="15000" />
+            </label>
+            <label>
+              Fruit + vegetables
+              <select id="produceSelect">
+                <option value="">Select</option>
+                <option>Hit 2 fruit + 3 veg</option>
+                <option>Short fruit</option>
+                <option>Short veg</option>
+                <option>Short both</option>
+              </select>
+            </label>
+          </div>
+          <div class="meal-list" id="mealList"></div>
+        </section>
+
+        <section class="view" id="view-workouts" aria-labelledby="workouts-title">
+          <div class="section-heading">
+            <h3 id="workouts-title">Workouts</h3>
+            <p>Push - pull - legs - progressive overload</p>
+          </div>
+          <div class="workout-controls">
+            <label>
+              Week
+              <select id="weekSelect"></select>
+            </label>
+            <label>
+              Session
+              <select id="sessionSelect"></select>
+            </label>
+          </div>
+          <div class="workout-list" id="workoutList"></div>
+        </section>
+
+        <section class="view" id="view-recipes" aria-labelledby="recipes-title">
+          <div class="section-heading">
+            <h3 id="recipes-title">Quick Recipes</h3>
+            <p>15-20 minute lunches and dinners - desserts included</p>
+          </div>
+          <div class="search-row">
+            <input id="recipeSearch" type="search" placeholder="Search pizza, burger, dessert..." />
+          </div>
+          <div class="recipe-grid" id="recipeGrid"></div>
+        </section>
+
+        <section class="view" id="view-grocery" aria-labelledby="grocery-title">
+          <div class="section-heading">
+            <h3 id="grocery-title">Grocery List</h3>
+            <p>$150 weekly budget - protein powder and syrup already stocked</p>
+          </div>
+          <div class="grocery-summary" id="grocerySummary"></div>
+          <div class="grocery-list" id="groceryList"></div>
+        </section>
+
+        <section class="view" id="view-notes" aria-labelledby="notes-title">
+          <div class="section-heading">
+            <h3 id="notes-title">Program Notes</h3>
+            <p>Progression - nutrition - sources</p>
+          </div>
+          <div class="notes-layout">
+            <section class="panel">
+              <h4>Progression</h4>
+              <ul class="plain-list">
+                <li>Train most working sets with 1-2 reps in reserve.</li>
+                <li>Add reps before adding weight.</li>
+                <li>When all sets hit the top of the rep range with clean form, add load next time.</li>
+                <li>If performance drops for two sessions, hold load and reduce one set per exercise for a week.</li>
+              </ul>
+            </section>
+            <section class="panel">
+              <h4>Nutrition</h4>
+              <ul class="plain-list">
+                <li>Average 2150-2250 calories per day.</li>
+                <li>Protein target: 165-190g per day.</li>
+                <li>Keep breakfast low-carb; place carbs before and after the 5pm lift.</li>
+                <li>Aim for 2 cups fruit and 3 cups vegetables daily.</li>
+              </ul>
+            </section>
+            <section class="panel wide">
+              <h4>Sources</h4>
+              <div class="sources" id="sourceList"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
